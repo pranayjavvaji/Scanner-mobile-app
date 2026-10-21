@@ -3,7 +3,7 @@ import { View, Text, FlatList, TouchableOpacity, Modal, Alert, Share, ScrollView
 import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
 import { C, TYPES } from './theme';
-import { Btn, Input, Label, s } from './ui';
+import { Btn, Input, Label, Overlay, s } from './ui';
 import { listItems, addItem, updateItem, deleteItem, clearAll, toCSV } from './db';
 import { buildText } from './net';
 
@@ -97,7 +97,7 @@ export default function LibraryScreen({ app }) {
         )} />
 
       <Modal visible={!!edit} transparent animationType="fade" onRequestClose={() => setEdit(null)}>
-        <View style={s.modalWrap}><View style={s.modal}>
+        <Overlay><View style={s.modal}>
           <Text style={s.h}>{edit?.id ? 'Edit item' : 'Add item'}</Text>
           <Label>BARCODE</Label>
           <Input value={edit?.code} onChangeText={(t) => setEdit({ ...edit, code: t })} autoCapitalize="none" />
@@ -112,7 +112,7 @@ export default function LibraryScreen({ app }) {
             {!!edit?.id && <Btn kind="danger" title="Delete" onPress={async () => { await deleteItem(edit.id); setEdit(null); load(); }} />}
             <Btn kind="ghost" title="Close" onPress={() => setEdit(null)} />
           </View>
-        </View></View>
+        </View></Overlay>
       </Modal>
 
       <Modal visible={!!found} transparent animationType="fade" onRequestClose={() => setFound(null)}>

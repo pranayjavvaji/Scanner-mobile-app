@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TouchableOpacity, TextInput, View, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, TextInput, View, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { C } from './theme';
 
 export const Btn = ({ title, onPress, kind = 'primary', small, style, disabled }) => (
@@ -26,6 +26,10 @@ export const Seg = ({ options, value, onChange }) => (
 export const Dot = ({ status }) => (
   <View style={{ width: 10, height: 10, borderRadius: 5,
     backgroundColor: status === 'ok' ? C.good : status === 'bad' ? C.bad : C.sub }} />
+);
+// Dark backdrop for pop-up dialogs that lifts above the keyboard (needed with Android edge-to-edge)
+export const Overlay = ({ children }) => (
+  <KeyboardAvoidingView behavior="padding" style={s.modalWrap}>{children}</KeyboardAvoidingView>
 );
 export const s = StyleSheet.create({
   btn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, alignItems: 'center' },

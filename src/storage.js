@@ -3,8 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const DEFAULT_SETTINGS = {
   mode: 'both',        // both | send | store
   dup: 'increment',    // increment | new
-  suffix: 'enter',     // enter | tab | none
+  suffix: 'enter',     // enter | tab | none   (key pressed on the PC AFTER each item)
+  prefix: 'none',      // none | esc | esc2    (Esc pressed on the PC BEFORE each item)
   format: 'code',      // code | code_qty | code_qty_notes
+  scanMode: 'confirm', // confirm (tap the shutter) | auto
+  strict: true,        // auto mode: ignore codes with a bad check digit
+  startScreen: 'scan', // scan | home
+  currency: '₹',
   haptics: true,
   cooldown: 1500,
   sendDelay: 150,

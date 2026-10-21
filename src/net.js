@@ -19,8 +19,9 @@ async function call(d, path, body, ms = 5000) {
 }
 
 export const ping = (d) => call(d, '/ping', null, 2500);
-export const sendText = (d, text, suffix) => call(d, '/type', { text, suffix });
-export const sendBulk = (d, items, suffix, delay) => call(d, '/bulk', { items, suffix, delay }, 30000);
+// suffix = key pressed after the item, prefix = key(s) pressed before it (none | esc | esc2)
+export const sendText = (d, text, suffix, prefix) => call(d, '/type', { text, suffix, prefix });
+export const sendBulk = (d, items, suffix, delay, prefix) => call(d, '/bulk', { items, suffix, delay, prefix }, 30000);
 
 // What gets typed on the PC for one stored/scanned item
 export function buildText(item, format) {
