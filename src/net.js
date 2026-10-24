@@ -20,8 +20,17 @@ async function call(d, path, body, ms = 5000) {
 
 export const ping = (d) => call(d, '/ping', null, 2500);
 // suffix = key pressed after the item, prefix = key(s) pressed before it (none | esc | esc2)
-export const sendText = (d, text, suffix, prefix) => call(d, '/type', { text, suffix, prefix });
-export const sendBulk = (d, items, suffix, delay, prefix) => call(d, '/bulk', { items, suffix, delay, prefix }, 30000);
+// `meta` = details shown in the PC console only (never typed): code, quantity, notes, type, source
+export const sendText = (d, text, suffix, prefix, meta) => call(d, '/type', { text, suffix, prefix, meta });
+export const sendBulk = (d, items, suffix, delay, prefix, metas) => call(d, '/bulk', { items, suffix, delay, prefix, metas }, 30000);
+// quantity / notes changed on the phone after a scan was already sent
+export const sendInfo = (d, meta) => call(d, '/info', { meta });
+export const buildMeta = (item, source) => ({
+  code: String(item.code), quantity: item.quantity, notes: String(item.notes || '').replace(/\s+/g, ' ').slice(0, 200),
+  type: item.format || item.type || '', source, existed: !!item.existed,
+});
+// press a key / key combo on the PC, e.g. ['left'] or ['shift', 'tab']
+export const sendKeys = (d, keys) => call(d, '/key', { keys });
 
 // What gets typed on the PC for one stored/scanned item
 export function buildText(item, format) {

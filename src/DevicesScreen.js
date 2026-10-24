@@ -4,8 +4,26 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { C } from './theme';
 import { Btn, Input, Label, Seg, Dot, Overlay, s } from './ui';
 import { ping, discover } from './net';
+import { fixStoredUpc } from './db';
+import { KEY_ACTIONS } from './keys';
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+
+// Row of selectable chips, one per action in keys.js
+const KeyPicker = ({ value, onChange }) => (
+  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+    {KEY_ACTIONS.map((a) => {
+      const on = value === a.id;
+      return (
+        <TouchableOpacity key={a.id} onPress={() => onChange(a.id)} activeOpacity={0.7}
+          style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+            borderColor: on ? C.accent : C.border, backgroundColor: on ? C.accent : C.bg }}>
+          <Text style={{ color: on ? '#fff' : C.sub, fontWeight: '600' }}>{a.name}</Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+);
 
 export default function DevicesScreen({ app }) {
   const { devices, setDevices, defaultId, setDefaultId, settings, setSettings } = app;
@@ -65,6 +83,11 @@ export default function DevicesScreen({ app }) {
   };
 
   const set = (k) => (v) => setSettings({ ...settings, [k]: v });
+  const repairZeros = async () => {
+    const n = await fixStoredUpc();
+    app.bump();
+    Alert.alert(n ? 'Fixed' : 'Nothing to fix', n ? `${n} stored code(s) now have their leading 0.` : 'No stored 12-digit UPC-A codes were found.');
+  };
 
   return (
     <ScrollView contentContainerStyle={{ padding: 14 }} keyboardShouldPersistTaps="handled">
@@ -108,8 +131,17 @@ export default function DevicesScreen({ app }) {
       <Seg value={settings.prefix} onChange={set('prefix')} options={[['none', 'Nothing'], ['esc', 'Esc ×1'], ['esc2', 'Esc ×2']]} />
       <Label>KEY PRESSED ON PC AFTER EACH ITEM</Label>
       <Seg value={settings.suffix} onChange={set('suffix')} options={[['enter', 'Enter'], ['tab', 'Tab'], ['none', 'Nothing']]} />
-      <Label>WHAT GETS TYPED</Label>
+      <Label>WHAT GETS TYPED (QUANTITY & NOTES ALWAYS SHOW IN THE PC CONSOLE)</Label>
       <Seg value={settings.format} onChange={set('format')} options={[['code', 'Code'], ['code_qty', 'Code⇥Qty'], ['code_qty_notes', 'Code⇥Qty⇥Notes']]} />
+
+      <Text style={[s.h, { marginTop: 22 }]}>Scan screen buttons</Text>
+      <Text style={{ color: C.sub, marginBottom: 10 }}>
+        Two buttons sit beside the shutter. Tapping one presses that key on your PC (needs receiver v1.2).
+      </Text>
+      <Label>LEFT BUTTON</Label>
+      <KeyPicker value={settings.keyLeft} onChange={set('keyLeft')} />
+      <Label>RIGHT BUTTON</Label>
+      <KeyPicker value={settings.keyRight} onChange={set('keyRight')} />
 
       <Text style={[s.h, { marginTop: 22 }]}>Scanner & app</Text>
       <Label>HOW A SCAN IS ACCEPTED</Label>
@@ -122,6 +154,20 @@ export default function DevicesScreen({ app }) {
       <Seg value={settings.startScreen} onChange={set('startScreen')} options={[['scan', 'Scan'], ['home', 'Home']]} />
       <Label>CURRENCY SYMBOL (BILLS)</Label>
       <Input value={settings.currency} onChangeText={set('currency')} maxLength={4} style={{ width: 90 }} />
+
+      <Text style={[s.h, { marginTop: 22 }]}>Leading zeros</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <Text style={{ color: C.text, flex: 1, paddingRight: 10 }}>Add the missing 0 to 12-digit UPC-A codes (store as 13-digit EAN-13)</Text>
+        <Switch value={settings.upcToEan} onValueChange={set('upcToEan')} />
+      </View>
+      <Label>PAD ALL-DIGIT CODES WITH ZEROS UP TO (0 = OFF)</Label>
+      <Input value={String(settings.padLen || 0)} keyboardType="number-pad" maxLength={2} style={{ width: 90 }}
+        onChangeText={(t) => set('padLen')(parseInt(t, 10) || 0)} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Text style={{ color: C.text, flex: 1, paddingRight: 10 }}>Excel: type an apostrophe first for long numbers and codes starting with 0 (keeps them as text, no 8.9E+12)</Text>
+        <Switch value={settings.excelText} onValueChange={set('excelText')} />
+      </View>
+      <Btn kind="ghost" title="Fix stored items missing their leading 0" onPress={repairZeros} style={{ marginBottom: 12 }} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
         <Text style={{ color: C.text }}>Vibrate on scan</Text>
         <Switch value={settings.haptics} onValueChange={set('haptics')} />

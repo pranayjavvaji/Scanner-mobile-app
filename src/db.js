@@ -56,9 +56,18 @@ export async function deleteItem(id) { await (await getDb()).runAsync('DELETE FR
 export async function clearAll() { await (await getDb()).runAsync('DELETE FROM items'); }
 
 const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+// Excel shows long numbers as 8.90101E+12 and strips leading zeros; the ="..." form keeps them as text
+const csvCode = (c) => (/^(0\d+|\d{10,})$/.test(String(c)) ? `="${c}"` : esc(c));
 export const toCSV = (rows) =>
   ['code,format,quantity,notes,created_at', ...rows.map((r) =>
-    [esc(r.code), esc(r.format), r.quantity, esc(r.notes), esc(new Date(r.created_at).toISOString())].join(','))].join('\n');
+    [csvCode(r.code), esc(r.format), r.quantity, esc(r.notes), esc(new Date(r.created_at).toISOString())].join(','))].join('\n');
+
+// One-time repair: items stored earlier as 12-digit UPC-A get their leading 0 back (-> 13-digit EAN-13)
+export async function fixStoredUpc() {
+  const db = await getDb();
+  const r = await db.runAsync("UPDATE items SET code = '0' || code, format = 'ean13' WHERE format = 'upc_a' AND length(code) = 12 AND code NOT GLOB '*[^0-9]*'");
+  return r.changes;
+}
 
 /* ------------------------------ Billing ------------------------------
    Every bill line is written to disk the moment it is added, so an unfinished
@@ -126,4 +135,4 @@ export async function allBillLines() {
     FROM bill_items i JOIN bills b ON b.id=i.bill_id WHERE b.status='saved' ORDER BY b.id, i.id`);
 }
 export const billsCSV = (rows) => ['bill,date,code,name,qty,price,amount', ...rows.map((r) =>
-  [r.bill, esc(new Date(r.saved_at).toISOString()), esc(r.code), esc(r.name), r.qty, r.price, r2(r.qty * r.price)].join(','))].join('\n');
+  [r.bill, esc(new Date(r.saved_at).toISOString()), csvCode(r.code), esc(r.name), r.qty, r.price, r2(r.qty * r.price)].join(','))].join('\n');

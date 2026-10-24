@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, KeyboardAvoidingView } from 'react-native';
 import { C } from './theme';
 import { Btn, Input, Dot } from './ui';
 import { addItem, updateItem } from './db';
-import { buildText, ping } from './net';
+import { buildText, buildMeta, ping } from './net';
 import Scanner from './Scanner';
+import { keyAction } from './keys';
 
 export default function ScanScreen({ app }) {
   const { settings, devices, device, setDefaultId } = app;
   const [last, setLast] = useState(null);
   const [status, setStatus] = useState('unknown');
+  const infoTimer = useRef(null);
 
   useEffect(() => {
     if (!device) { setStatus('unknown'); return; }
@@ -24,7 +26,9 @@ export default function ScanScreen({ app }) {
     let item = null, sent = null;
     if (settings.mode !== 'send') item = await addItem({ code: data, format: type, quantity: 1 }, settings.dup);
     if (settings.mode !== 'store') {
-      sent = await app.sendOne(buildText({ code: data, quantity: item?.quantity ?? 1, notes: item?.notes ?? '' }, settings.format));
+      sent = await app.sendOne(
+        buildText({ code: data, quantity: item?.quantity ?? 1, notes: item?.notes ?? '' }, settings.format),
+        buildMeta({ code: data, quantity: item?.quantity ?? 1, notes: item?.notes ?? '', format: type, existed: item?.existed }, 'scan'));
     }
     setLast({ code: data, type, item, sent });
     app.bump();
@@ -34,6 +38,11 @@ export default function ScanScreen({ app }) {
     setLast({ ...last, item });
     updateItem(item.id, item);
     app.bump();
+    // tell the PC console about the change (waits a moment so typing notes doesn't spam it)
+    if (settings.mode !== 'store') {
+      clearTimeout(infoTimer.current);
+      infoTimer.current = setTimeout(() => app.sendInfo(buildMeta(item, 'scan')), 700);
+    }
   };
   const cycleDevice = () => {
     if (devices.length < 2) return;
@@ -41,6 +50,11 @@ export default function ScanScreen({ app }) {
     setDefaultId(devices[(i + 1) % devices.length].id);
   };
   const needsPC = settings.mode !== 'store';
+  // the two buttons beside the shutter: each presses the key chosen in Setup on the PC
+  const keyButtons = ['keyLeft', 'keyRight'].map((k) => {
+    const a = keyAction(settings[k]);
+    return a.keys ? { label: a.icon, onPress: () => app.sendKey(a.keys) } : null;
+  });
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -54,7 +68,7 @@ export default function ScanScreen({ app }) {
         {devices.length > 1 && <Text style={{ color: C.sub, fontSize: 12 }}>tap to switch</Text>}
       </TouchableOpacity>
 
-      <View style={{ flex: 1 }}><Scanner app={app} onAccept={onAccept} /></View>
+      <View style={{ flex: 1 }}><Scanner app={app} onAccept={onAccept} keyButtons={keyButtons} /></View>
 
       <View style={{ backgroundColor: C.card, borderTopWidth: 1, borderColor: C.border, padding: 14 }}>
         {!last ? (

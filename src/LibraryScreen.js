@@ -5,7 +5,8 @@ import { Camera } from 'expo-camera';
 import { C, TYPES } from './theme';
 import { Btn, Input, Label, Overlay, s } from './ui';
 import { listItems, addItem, updateItem, deleteItem, clearAll, toCSV } from './db';
-import { buildText } from './net';
+import { buildText, buildMeta } from './net';
+import { normalize } from './barcode';
 
 export default function LibraryScreen({ app }) {
   const { settings } = app;
@@ -26,7 +27,7 @@ export default function LibraryScreen({ app }) {
     if (!items.length) return;
     Alert.alert('Send all', `Type ${items.length} item(s) on your PC?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Send', onPress: async () => report(await app.sendMany(items.map((i) => buildText(i, settings.format))), items.length) },
+      { text: 'Send', onPress: async () => report(await app.sendMany(items.map((i) => buildText(i, settings.format)), items.map((i) => buildMeta(i, 'library'))), items.length) },
     ]);
   };
   const exportCSV = () => items.length && Share.share({ title: 'barscan.csv', message: toCSV(items) });
@@ -52,7 +53,7 @@ export default function LibraryScreen({ app }) {
     try {
       for (const a of res.assets) {
         const r = await Camera.scanFromURLAsync(a.uri, TYPES);
-        (r || []).forEach((b) => map.set(b.data, { code: b.data, type: b.type, on: true }));
+        (r || []).forEach((b) => { const n = normalize(b.type, b.data, settings); map.set(n.data, { code: n.data, type: n.type, on: true }); });
       }
     } catch (e) { Alert.alert('Could not read image', String(e.message || e)); }
     setBusy(false);
@@ -64,7 +65,7 @@ export default function LibraryScreen({ app }) {
     const saved = [];
     for (const f of chosen) saved.push(await addItem({ code: f.code, format: f.type }, settings.dup));
     setFound(null); load(); app.bump();
-    if (andSend && chosen.length) report(await app.sendMany(saved.map((i) => buildText(i, settings.format))), saved.length);
+    if (andSend && chosen.length) report(await app.sendMany(saved.map((i) => buildText(i, settings.format)), saved.map((i) => buildMeta(i, 'image'))), saved.length);
   };
 
   return (
@@ -107,8 +108,10 @@ export default function LibraryScreen({ app }) {
           <Input value={edit?.notes} multiline onChangeText={(t) => setEdit({ ...edit, notes: t })} />
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             <Btn title="Save" onPress={saveEdit} />
-            {!!edit?.id && <Btn kind="ghost" title="Send to PC" onPress={async () =>
-              report(await app.sendOne(buildText({ ...edit, quantity: parseInt(edit.quantity, 10) || 1 }, settings.format)), 1)} />}
+            {!!edit?.id && <Btn kind="ghost" title="Send to PC" onPress={async () => {
+              const it = { ...edit, quantity: parseInt(edit.quantity, 10) || 1 };
+              report(await app.sendOne(buildText(it, settings.format), buildMeta(it, 'library')), 1);
+            }} />}
             {!!edit?.id && <Btn kind="danger" title="Delete" onPress={async () => { await deleteItem(edit.id); setEdit(null); load(); }} />}
             <Btn kind="ghost" title="Close" onPress={() => setEdit(null)} />
           </View>

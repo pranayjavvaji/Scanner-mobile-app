@@ -10,6 +10,11 @@ export const DEFAULT_SETTINGS = {
   strict: true,        // auto mode: ignore codes with a bad check digit
   startScreen: 'scan', // scan | home
   currency: '₹',
+  upcToEan: true,      // 12-digit UPC-A -> 13-digit EAN-13 (restores the leading 0 the scanner drops)
+  padLen: 0,           // pad all-digit codes with leading zeros up to N digits (0 = off)
+  excelText: false,    // type an apostrophe before codes starting with 0 so Excel keeps the zero
+  keyLeft: 'shift_tab', // key sent to the PC by the button left of the shutter (see keys.js)
+  keyRight: 'tab',      // key sent to the PC by the button right of the shutter
   haptics: true,
   cooldown: 1500,
   sendDelay: 150,

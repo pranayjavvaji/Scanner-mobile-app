@@ -6,8 +6,12 @@ import { money } from './Receipt';
 
 const Tile = ({ icon, title, sub, onPress, accent }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ backgroundColor: C.card, borderRadius: 16, borderWidth: 1,
-    borderColor: accent || C.border, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-    <Text style={{ fontSize: 32 }}>{icon}</Text>
+    borderColor: accent || C.border, padding: 16, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 14,
+    elevation: 2, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
+    <View style={{ width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(77,141,255,0.12)' }}>
+      <Text style={{ fontSize: 28 }}>{icon}</Text>
+    </View>
     <View style={{ flex: 1 }}>
       <Text style={{ color: C.text, fontSize: 18, fontWeight: '800' }}>{title}</Text>
       {!!sub && <Text style={{ color: C.sub, marginTop: 2 }}>{sub}</Text>}

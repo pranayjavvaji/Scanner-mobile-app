@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { C } from './src/theme';
 import { loadAll, saveSettings, saveDevices, saveDefault } from './src/storage';
-import { sendText, sendBulk } from './src/net';
+import { sendText, sendBulk, sendKeys, sendInfo as netInfo } from './src/net';
 import HomeScreen from './src/HomeScreen';
 import ScanScreen from './src/ScanScreen';
 import BillsScreen from './src/BillsScreen';
@@ -37,13 +37,21 @@ export default function App() {
 
   const device = devices.find((d) => d.id === defaultId) || devices[0] || null;
   const noDev = { ok: false, msg: 'No PC set up (Setup tab)' };
-  const sendOne = async (text) => (device ? sendText(device, text, settings.suffix, settings.prefix) : noDev);
-  const sendMany = async (texts) =>
-    (device ? sendBulk(device, texts, settings.suffix, settings.sendDelay / 1000, settings.prefix) : noDev);
+  // Excel turns long numbers into 8.90101E+12 and drops leading zeros; a leading apostrophe keeps the cell as text
+  const xl = (t) => {
+    const first = t.split('\t')[0];
+    return settings.excelText && /^\d+$/.test(first) && (first.length >= 10 || first[0] === '0') ? `'${t}` : t;
+  };
+  const sendOne = async (text, meta) =>
+    (device ? sendText(device, xl(text), settings.suffix, settings.prefix, meta) : noDev);
+  const sendMany = async (texts, metas) =>
+    (device ? sendBulk(device, texts.map(xl), settings.suffix, settings.sendDelay / 1000, settings.prefix, metas) : noDev);
+  const sendInfo = async (meta) => (device ? netInfo(device, meta) : noDev);
+  const sendKey = async (keys) => (device ? sendKeys(device, keys) : noDev);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: C.bg }} />;
   const app = {
-    settings, setSettings, devices, setDevices, defaultId, setDefaultId, device, sendOne, sendMany, rev, bump,
+    settings, setSettings, devices, setDevices, defaultId, setDefaultId, device, sendOne, sendMany, sendKey, sendInfo, rev, bump,
     intent, clearIntent: () => setIntent(null),
     goto: (t, i = null) => { setIntent(i); setTab(t); },
   };
@@ -60,11 +68,18 @@ export default function App() {
           {tab === 'devices' && <DevicesScreen app={app} />}
         </View>
         <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: C.border, backgroundColor: C.card }}>
-          {TABS.map(([k, l]) => (
-            <TouchableOpacity key={k} onPress={() => setTab(k)} style={{ flex: 1, paddingVertical: 12, alignItems: 'center' }}>
-              <Text style={{ color: tab === k ? C.accent : C.sub, fontWeight: '700', fontSize: 11 }}>{l}</Text>
-            </TouchableOpacity>
-          ))}
+          {TABS.map(([k, l]) => {
+            const on = tab === k;
+            const [icon, ...words] = l.split(' ');
+            return (
+              <TouchableOpacity key={k} onPress={() => setTab(k)} activeOpacity={0.7}
+                style={{ flex: 1, paddingTop: 8, paddingBottom: 10, alignItems: 'center', borderTopWidth: 2,
+                  borderTopColor: on ? C.accent : 'transparent', opacity: on ? 1 : 0.75 }}>
+                <Text style={{ fontSize: 18 }}>{icon}</Text>
+                <Text style={{ color: on ? C.accent : C.sub, fontWeight: '700', fontSize: 10, marginTop: 2 }}>{words.join(' ')}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </SafeAreaView>
     </SafeAreaProvider>

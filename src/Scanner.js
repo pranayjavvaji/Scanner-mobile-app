@@ -4,7 +4,7 @@ import { CameraView, Camera, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { C, TYPES } from './theme';
 import { Btn } from './ui';
-import { validCode } from './barcode';
+import { validCode, normalize } from './barcode';
 
 const LIVE_TTL = 1200;   // a live detection disappears this long after it was last seen
 const PHOTO_TTL = 8000;  // a detection decoded from a still photo stays until confirmed
@@ -24,7 +24,7 @@ const colorOf = (d) => (!d.ok ? C.bad : d.count >= 2 ? C.good : C.warn);
  *  - "confirm" mode: the number is drawn next to the barcode; the user taps the shutter when it is right.
  *  - "auto" mode: accepts a code as soon as it is read (optionally ignoring bad check digits).
  */
-export default function Scanner({ app, onAccept, paused }) {
+export default function Scanner({ app, onAccept, paused, keyButtons }) {
   const { settings, setSettings } = app;
   const confirmMode = settings.scanMode === 'confirm';
   const [perm, askPerm] = useCameraPermissions();
@@ -61,9 +61,10 @@ export default function Scanner({ app, onAccept, paused }) {
     onAccept({ data: d.data, type: d.type });
   };
 
-  const onScan = ({ data, type, bounds }) => {
+  const onScan = ({ data: rawData, type: rawType, bounds }) => {
     if (paused) return;
-    const now = Date.now(), ok = validCode(type, data);
+    const now = Date.now(), ok = validCode(rawType, rawData);       // check digit is validated on the raw read
+    const { data, type } = normalize(rawType, rawData, settings);   // then the leading 0 is restored
     if (!confirmMode) {                                   // AUTO mode
       if (!ok && settings.strict) return;
       const same = autoSeen.current.code === data && now - autoSeen.current.t < settings.cooldown;
@@ -106,8 +107,11 @@ export default function Scanner({ app, onAccept, paused }) {
         flash('No barcode found. Move closer and hold steady.');
       } else {
         const now = Date.now();
-        res.forEach((r) => store.current.set(r.data, { key: r.data, data: r.data, type: r.type, bounds: null,
-          ok: validCode(r.type, r.data), seen: now, ttl: PHOTO_TTL, count: 2 }));
+        res.forEach((r) => {
+          const n = normalize(r.type, r.data, settings);
+          store.current.set(n.data, { key: n.data, data: n.data, type: n.type, bounds: null,
+            ok: validCode(r.type, r.data), seen: now, ttl: PHOTO_TTL, count: 2 });
+        });
         setDets([...store.current.values()]);
         flash('Check the number, then tap the shutter to confirm.');
       }
@@ -132,6 +136,20 @@ export default function Scanner({ app, onAccept, paused }) {
   const floating = withRect.filter((x) => !x.r).map((x) => x.d);   // no usable position: list under the frame
   const chip = { backgroundColor: 'rgba(15,17,21,0.85)', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' };
   const nextZoom = () => setZoom(zoom === 0 ? 0.25 : zoom === 0.25 ? 0.5 : 0);
+
+  // Extra buttons beside the shutter (they press a key on the PC). Each is {label, onPress} or null.
+  const kl = keyButtons?.[0], kr = keyButtons?.[1], hasKeys = !!(kl || kr);
+  const keyBtn = (k) => (
+    <TouchableOpacity activeOpacity={0.6} onPress={async () => {
+      if (settings.haptics) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const r = await k.onPress();
+      if (r && r.ok === false) flash(r.msg || 'Could not reach the PC');
+    }} style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(11,15,23,0.85)', borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.45)', alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: '#fff', fontSize: k.label.length > 2 ? 14 : 22, fontWeight: '800' }}>{k.label}</Text>
+    </TouchableOpacity>
+  );
+  const spacer = <View style={{ width: 54 }} />;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}
@@ -199,11 +217,18 @@ export default function Scanner({ app, onAccept, paused }) {
         </Text>
       )}
 
-      {confirmMode && (
-        <TouchableOpacity onPress={shutter} activeOpacity={0.7} style={{ position: 'absolute', bottom: 12, alignSelf: 'center',
-          width: 66, height: 66, borderRadius: 33, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: busy ? C.warn : chosen?.ok ? C.good : '#fff' }} />
-        </TouchableOpacity>
+      {(confirmMode || hasKeys) && (
+        <View style={{ position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row',
+          justifyContent: 'center', alignItems: 'center', gap: 26 }}>
+          {kl ? keyBtn(kl) : (hasKeys && confirmMode ? spacer : null)}
+          {confirmMode && (
+            <TouchableOpacity onPress={shutter} activeOpacity={0.7} style={{ width: 66, height: 66, borderRadius: 33,
+              borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: busy ? C.warn : chosen?.ok ? C.good : '#fff' }} />
+            </TouchableOpacity>
+          )}
+          {kr ? keyBtn(kr) : (hasKeys && confirmMode ? spacer : null)}
+        </View>
       )}
     </View>
   );
