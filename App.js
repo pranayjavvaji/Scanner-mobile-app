@@ -8,10 +8,19 @@ import { sendText, sendBulk, sendKeys, sendInfo as netInfo } from './src/net';
 import HomeScreen from './src/HomeScreen';
 import ScanScreen from './src/ScanScreen';
 import BillsScreen from './src/BillsScreen';
+import ProductsScreen from './src/ProductsScreen';
 import LibraryScreen from './src/LibraryScreen';
 import DevicesScreen from './src/DevicesScreen';
+import { checkAndRunScheduledSync } from './src/tradenest';
 
-const TABS = [['home', '🏠 Home'], ['scan', '📷 Scan'], ['bills', '🧾 Bills'], ['library', '🗂 Library'], ['devices', '⚙️ Setup']];
+const TABS = [
+  ['home', '🏠 Home'],
+  ['scan', '📷 Scan'],
+  ['bills', '🧾 Bills'],
+  ['products', '📦 Products'],
+  ['library', '🗂 Library'],
+  ['devices', '⚙️ Setup'],
+];
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -27,6 +36,10 @@ export default function App() {
       setSettingsS(d.settings); setDevicesS(d.devices); setDefaultS(d.defaultId);
       setTab(d.settings.startScreen === 'home' ? 'home' : 'scan');
       setReady(true);
+      // Run automatic background sync check (12 PM, 5 PM, Midnight)
+      checkAndRunScheduledSync().then((ran) => {
+        if (ran) bump();
+      });
     });
   }, []);
 
@@ -64,6 +77,7 @@ export default function App() {
           {tab === 'home' && <HomeScreen app={app} />}
           {tab === 'scan' && <ScanScreen app={app} />}
           {tab === 'bills' && <BillsScreen app={app} />}
+          {tab === 'products' && <ProductsScreen app={app} />}
           {tab === 'library' && <LibraryScreen app={app} />}
           {tab === 'devices' && <DevicesScreen app={app} />}
         </View>
@@ -75,8 +89,10 @@ export default function App() {
               <TouchableOpacity key={k} onPress={() => setTab(k)} activeOpacity={0.7}
                 style={{ flex: 1, paddingTop: 8, paddingBottom: 10, alignItems: 'center', borderTopWidth: 2,
                   borderTopColor: on ? C.accent : 'transparent', opacity: on ? 1 : 0.75 }}>
-                <Text style={{ fontSize: 18 }}>{icon}</Text>
-                <Text style={{ color: on ? C.accent : C.sub, fontWeight: '700', fontSize: 10, marginTop: 2 }}>{words.join(' ')}</Text>
+                <Text style={{ fontSize: 16 }}>{icon}</Text>
+                <Text style={{ color: on ? C.accent : C.sub, fontWeight: '700', fontSize: 9, marginTop: 2 }} numberOfLines={1}>
+                  {words.join(' ')}
+                </Text>
               </TouchableOpacity>
             );
           })}

@@ -16,8 +16,9 @@
       },
       "package": "com.barscan.app",
       "permissions": [
-        "CAMERA",
-        "VIBRATE"
+        "android.permission.CAMERA",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -42,6 +43,12 @@
         }
       ],
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f2719171-8e3d-4817-8b23-d1490e378c83"
+      }
+    },
+    "owner": "nothing6108s-team"
   }
 }

@@ -9,16 +9,25 @@ import { billItems, addBillItem, updateBillItem, deleteBillItem, saveBill, disca
 export default function BillEditor({ app, billId, onExit }) {
   const cur = app.settings.currency || '₹';
   const [items, setItems] = useState([]);
-  const [form, setForm] = useState(null);        // {id?, code, name, price, qty}
+  const [form, setForm] = useState(null);        // {id?, code, name, price, qty, rates?}
   const [preview, setPreview] = useState(false);
   const load = async () => setItems(await billItems(billId));
   useEffect(() => { load(); }, [billId]);
   const total = r2(items.reduce((t, i) => t + i.qty * i.price, 0));
 
   const onAccept = async ({ data }) => {
-    const info = await lastInfo(data);   // pre-fill the last price / name used for this barcode
-    setForm({ id: null, code: data, name: info.name || '', price: info.price != null ? String(info.price) : '', qty: '1' });
+    const info = await lastInfo(data);   // pre-fill from catalogue or history
+    setForm({
+      id: null,
+      code: data,
+      name: info.name || '',
+      price: info.price != null ? String(info.price) : '',
+      qty: '1',
+      rates: info.rates || [],
+      prices: info.prices || [],
+    });
   };
+
   const submit = async () => {
     const price = parseFloat(String(form.price).replace(',', '.'));
     const qty = Math.max(1, parseInt(form.qty, 10) || 1);
@@ -28,16 +37,19 @@ export default function BillEditor({ app, billId, onExit }) {
     if (form.id) await updateBillItem(form.id, row); else await addBillItem(billId, row);
     setForm(null); load();
   };
+
   const discard = () => Alert.alert('Discard this bill?', 'All its lines will be deleted.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Discard', style: 'destructive', onPress: async () => { await discardBill(billId); onExit(); } },
   ]);
+
   const confirmSave = async () => {
     await saveBill(billId);
     setPreview(false); app.bump();
     Alert.alert('Bill saved', money(total, cur));
     onExit();
   };
+
   const bill = { id: billId, created_at: Date.now() };
 
   return (
@@ -51,17 +63,20 @@ export default function BillEditor({ app, billId, onExit }) {
         <Btn small kind="danger" title="Discard" onPress={discard} />
       </View>
 
-      <View style={{ height: 270 }}><Scanner app={app} onAccept={onAccept} paused={!!form || preview} /></View>
+      <Scanner onAccept={onAccept} hint="Point camera at barcode to add to bill" />
 
-      <FlatList style={{ flex: 1 }} data={items} keyExtractor={(i) => String(i.id)} contentContainerStyle={{ padding: 10 }}
-        ListEmptyComponent={<Text style={{ color: C.sub, textAlign: 'center', marginTop: 20 }}>Scan a product to add it</Text>}
+      <FlatList data={items} keyExtractor={(i) => String(i.id)} style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 10, gap: 6 }}
         renderItem={({ item }) => (
-          <TouchableOpacity style={[s.card, { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }]}
-            onPress={() => setForm({ id: item.id, code: item.code, name: item.name, price: String(item.price), qty: String(item.qty) })}>
-            <View style={{ flex: 1, paddingRight: 8 }}>
-              <Text style={{ color: C.text, fontWeight: '700' }} numberOfLines={1}>{item.name || item.code}</Text>
+          <TouchableOpacity onPress={() => setForm({
+            id: item.id, code: item.code, name: item.name, price: String(item.price), qty: String(item.qty)
+          })}
+            style={{ backgroundColor: C.card, padding: 10, borderRadius: 10, flexDirection: 'row',
+              justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.text, fontWeight: '700' }}>{item.name || item.code || 'Item'}</Text>
               <Text style={{ color: C.sub, fontSize: 12 }}>
-                {item.qty} × {r2(item.price).toFixed(2)}{item.name && item.code ? `  ·  ${item.code}` : ''}
+                {item.qty} × {item.price.toFixed(2)} {item.code ? `· ${item.code}` : ''}
               </Text>
             </View>
             <Text style={{ color: C.text, fontWeight: '800' }}>{r2(item.qty * item.price).toFixed(2)}</Text>
@@ -75,7 +90,7 @@ export default function BillEditor({ app, billId, onExit }) {
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Btn kind="ghost" title="+ Manual item" style={{ flex: 1 }}
-            onPress={() => setForm({ id: null, code: '', name: '', price: '', qty: '1' })} />
+            onPress={() => setForm({ id: null, code: '', name: '', price: '', qty: '1', rates: [] })} />
           <Btn title="Preview & save" style={{ flex: 1 }} disabled={!items.length} onPress={() => setPreview(true)} />
         </View>
       </View>
@@ -87,10 +102,39 @@ export default function BillEditor({ app, billId, onExit }) {
           <Input value={form?.code} onChangeText={(t) => setForm({ ...form, code: t })} autoCapitalize="none" />
           <Label>PRODUCT NAME (optional)</Label>
           <Input value={form?.name} onChangeText={(t) => setForm({ ...form, name: t })} />
+
+          {/* Multiple MRP Chip Selector */}
+          {form?.rates && form.rates.length > 1 && (
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ color: C.warn, fontSize: 11, fontWeight: '700', marginBottom: 4 }}>
+                ⚡ Multiple MRPs found (tap to select rate):
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {form.rates.map((r, idx) => {
+                  const isSel = parseFloat(form.price) === r;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => setForm({ ...form, price: String(r) })}
+                      style={{
+                        paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+                        backgroundColor: isSel ? C.accent : 'rgba(255,255,255,0.06)',
+                        borderWidth: 1, borderColor: isSel ? C.accent : C.border,
+                      }}>
+                      <Text style={{ color: isSel ? '#fff' : C.text, fontSize: 12, fontWeight: '700' }}>
+                        {cur}{r.toFixed(2)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <View style={{ flex: 2 }}>
               <Label>AMOUNT ({cur}) PER UNIT</Label>
-              <Input value={form?.price} autoFocus keyboardType="decimal-pad"
+              <Input value={form?.price} autoFocus={!form?.rates?.length} keyboardType="decimal-pad"
                 onChangeText={(t) => setForm({ ...form, price: t })} onSubmitEditing={submit} />
             </View>
             <View style={{ flex: 1 }}>
@@ -99,7 +143,7 @@ export default function BillEditor({ app, billId, onExit }) {
                 onChangeText={(t) => setForm({ ...form, qty: t })} onSubmitEditing={submit} />
             </View>
           </View>
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
             <Btn title={form?.id ? 'Save' : 'Add'} onPress={submit} />
             {!!form?.id && <Btn kind="danger" title="Delete line"
               onPress={async () => { await deleteBillItem(form.id); setForm(null); load(); }} />}
